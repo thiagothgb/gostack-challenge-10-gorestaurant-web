@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
-
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../../components/Header';
-
 import api from '../../services/api';
-
 import Food from '../../components/Food';
 import ModalAddFood from '../../components/ModalAddFood';
 import ModalEditFood from '../../components/ModalEditFood';
-
 import { FoodsContainer } from './styles';
 
 interface IFoodPlate {
@@ -27,7 +23,13 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     async function loadFoods(): Promise<void> {
-      // TODO LOAD FOODS
+      try {
+        const { data } = await api.get<IFoodPlate[]>('foods');
+
+        setFoods(data);
+      } catch {
+        alert('Não foi possível carregar as informações. Verifique a conexão');
+      }
     }
 
     loadFoods();
@@ -37,33 +39,67 @@ const Dashboard: React.FC = () => {
     food: Omit<IFoodPlate, 'id' | 'available'>,
   ): Promise<void> {
     try {
-      // TODO ADD A NEW FOOD PLATE TO THE API
+      const { data } = await api.post<IFoodPlate>(`foods`, {
+        ...food,
+        id: Date.now(),
+        available: true,
+      });
+
+      setFoods(current => [...current, data]);
     } catch (err) {
       console.log(err);
+      alert('Não foi possível adicionar o prato. Verifique a conexão');
     }
   }
 
-  async function handleUpdateFood(
-    food: Omit<IFoodPlate, 'id' | 'available'>,
-  ): Promise<void> {
-    // TODO UPDATE A FOOD PLATE ON THE API
-  }
+  const handleUpdateFood = useCallback(
+    async (food: Omit<IFoodPlate, 'id' | 'available'>): Promise<void> => {
+      try {
+        const { data } = await api.put<IFoodPlate>(`foods/${editingFood.id}`, {
+          food,
+        });
 
-  async function handleDeleteFood(id: number): Promise<void> {
-    // TODO DELETE A FOOD PLATE FROM THE API
-  }
+        setFoods(current =>
+          current.map(item => {
+            if (item.id === editingFood.id) {
+              return data;
+            }
 
-  function toggleModal(): void {
-    setModalOpen(!modalOpen);
-  }
+            return item;
+          }),
+        );
+      } catch (error) {
+        alert('Não foi possível atualizar o prato');
+      }
+    },
+    [editingFood.id],
+  );
 
-  function toggleEditModal(): void {
-    setEditModalOpen(!editModalOpen);
-  }
+  const handleDeleteFood = useCallback(async (id: number): Promise<void> => {
+    try {
+      await api.delete(`foods/${id}`);
 
-  function handleEditFood(food: IFoodPlate): void {
-    // TODO SET THE CURRENT EDITING FOOD ID IN THE STATE
-  }
+      setFoods(current => current.filter(item => item.id !== id));
+    } catch (error) {
+      alert('Não foi possível remover o prato');
+    }
+  }, []);
+
+  const toggleModal = useCallback((): void => {
+    setModalOpen(current => !current);
+  }, []);
+
+  const toggleEditModal = useCallback((): void => {
+    setEditModalOpen(current => !current);
+  }, []);
+
+  const handleEditFood = useCallback(
+    (food: IFoodPlate): void => {
+      setEditingFood(food);
+      toggleEditModal();
+    },
+    [toggleEditModal],
+  );
 
   return (
     <>
@@ -75,8 +111,8 @@ const Dashboard: React.FC = () => {
       />
       <ModalEditFood
         isOpen={editModalOpen}
-        setIsOpen={toggleEditModal}
         editingFood={editingFood}
+        setIsOpen={toggleEditModal}
         handleUpdateFood={handleUpdateFood}
       />
 
